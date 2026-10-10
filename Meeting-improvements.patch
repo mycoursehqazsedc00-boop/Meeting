@@ -1,0 +1,112 @@
+diff -ruN a/Browser.lua b/Browser.lua
+--- a/Browser.lua	2026-10-10 08:45:44.572021540 +0000
++++ b/Browser.lua	2026-10-10 08:45:44.575445154 +0000
+@@ -70,11 +70,28 @@
+ browserFrame:EnableMouseWheel(true)
+ Meeting.searchInfo.category = ""
+ Meeting.searchInfo.code = ""
+-local matchs = {}
++local matchs = {}
++local nomatchs = {}
++local cachedMatchSignature = nil
++
++local function ComputeCodesSignature()
++    local keys = {}
++    for k, v in pairs(Meeting.searchInfo.codes) do
++        if v then table.insert(keys, k) end
++    end
++    table.sort(keys)
++    return table.concat(keys, ",")
++end
+ -- 修改 SetMathcKeyWords 函数支持跨类别多选 by 武藤纯子酱 2025.9.22
+ function SetMathcKeyWords()
++    local signature = Meeting.searchInfo.category .. "\1" .. Meeting.searchInfo.code .. "\1" .. ComputeCodesSignature()
++    if signature == cachedMatchSignature then
++        return matchs, nomatchs
++    end
++    cachedMatchSignature = signature
++
+     matchs = {}
+-    local nomatchs = {}  -- 存储排除关键词
++    nomatchs = {}  -- 存储排除关键词
+     
+     -- 添加任务链接匹配条件
+     if Meeting.searchInfo.code == "QuestLink" then
+diff -ruN a/Meeting.lua b/Meeting.lua
+--- a/Meeting.lua	2026-10-10 08:45:44.579920518 +0000
++++ b/Meeting.lua	2026-10-10 08:45:44.581387674 +0000
+@@ -517,12 +517,20 @@
+     end
+ end
+ 
+-function Meeting:OnCreate(id, code, comment, level, class, members, hc, classnum)
++function Meeting:OnCreate(id, code, comment, level, class, members, hc, classnum, faction)
+     -- 检查屏蔽词
+     if Meeting.CheckBlockWords(id, id) or Meeting.CheckBlockWords(id, comment) then
+         return  -- 如果包含屏蔽词，不创建活动
+     end
+ 
++    -- 跳过跨阵营活动 (faction为空表示来自旧版本客户端，不过滤，保持兼容)
++    if faction and faction ~= "Neutral" then
++        local myFaction = UnitFactionGroup("player")
++        if myFaction and myFaction ~= "Neutral" and faction ~= myFaction then
++            return
++        end
++    end
++
+     local item, index = Meeting:FindActivity(id)
+     local code = Meeting.GetActivityInfo(code).key
+     local class = Meeting.NumberToClass(tonumber(class))
+@@ -540,6 +548,9 @@
+         if classnum then
+             item.classnum = classnum
+         end
++        if faction then
++            item.faction = faction
++        end
+         table.remove(Meeting.activities, index)
+     else
+         item = {
+@@ -554,6 +565,7 @@
+             updated = time(),
+             applicantList = {},
+             classnum = classnum,
++            faction = faction,
+             classColor = classColor,
+             IsChat = function(self)
+                 return self.category == "CHAT"
+diff -ruN a/Message.lua b/Message.lua
+--- a/Message.lua	2026-10-10 08:45:44.576955396 +0000
++++ b/Message.lua	2026-10-10 08:45:44.578547381 +0000
+@@ -46,7 +46,7 @@
+ Meeting.CheckBlockWords = CheckBlockWords
+ 
+ function Message.OnRecv(playerName, data)
+-    local _, event, arg1, arg2, arg3, arg4, arg5, arg6, arg7 = string.meetingsplit(data, ":")
++    local _, event, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 = string.meetingsplit(data, ":")
+     if event == EVENTS.CREATE then
+         -- 检查活动说明中的屏蔽词
+         if CheckBlockWords(playerName, arg2) then
+@@ -57,7 +57,7 @@
+             return
+         end
+         if Meeting.OnCreate then
+-            Meeting:OnCreate(playerName, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
++            Meeting:OnCreate(playerName, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+         end
+     elseif event == EVENTS.REQUEST then
+         if Meeting.OnRequest then
+@@ -217,10 +217,11 @@
+ end
+ 
+ function Message.CreateActivity(code, comment)
+-    local data = string.format("%s:%s:%d:%d:%d:%d:%s", code,
++    local faction = UnitFactionGroup("player") or "Neutral" -- english token (e.g. "Alliance"/"Horde"), locale-independent
++    local data = string.format("%s:%s:%d:%d:%d:%d:%s:%s", code,
+         string.isempty(comment) and "_" or comment, UnitLevel("player"),
+         Meeting.ClassToNumber(Meeting.playerClass),
+-        table.getn(Meeting.members) + 1, Meeting.playerIsHC and 1 or 0, Meeting.EncodeGroupClass())
++        table.getn(Meeting.members) + 1, Meeting.playerIsHC and 1 or 0, Meeting.EncodeGroupClass(), faction)
+     MEETING_DB.activity = {
+         code = code,
+         comment = comment,
