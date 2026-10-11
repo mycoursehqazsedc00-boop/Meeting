@@ -40,6 +40,26 @@ The protocol is a plain colon-delimited positional string. The new field is **ap
 
 **Verified against the actual extracted, patched function** (not a reimplementation), with an instrumented rebuild counter: a real filter change correctly triggers exactly one rebuild with correct content; 50 subsequent calls with an unchanged filter trigger zero further rebuilds; switching between multi-select and single-select filter modes correctly invalidates and rebuilds.
 
+## Bug fix — crash report from live use
+
+A user hit this in-game after installing the earlier version of this patch:
+```
+Meeting\Browser.lua:489: bad argument #1 to `byte' (string expected, got table)
+```
+**This bug predates this patch** — it's the exact same code, unmodified, that existed in the original addon at line 472; it only shifted to line 489 because the `SetMathcKeyWords` fix above added lines earlier in the file. Confirmed by diffing against the original before investigating further.
+
+The search box's `OnChar` handler (for detecting the start of Chinese-character IME composition) called `string.byte(char)` without checking that `char` was actually a non-empty string first:
+```lua
+if char and string.byte(char) > 127 then
+```
+In practice `char` can arrive as a table in certain input scenarios, which crashes `string.byte` outright. The same line was also vulnerable to a second, related crash on an *empty* string input (`string.byte("")` returns `nil`, and `nil > 127` errors too) — never reported, but the same class of bug, fixed at the same time. Changed to:
+```lua
+if type(char) == "string" and string.len(char) > 0 and string.byte(char) > 127 then
+```
+Any unexpected input (table, empty string) now safely falls through to the "not composing" branch — the safer default, since it just means an immediate search instead of a delayed one, rather than crashing or getting stuck.
+
+**Verified:** tested the fixed condition against 7 input shapes (plain ASCII, a real UTF-8 multi-byte character, empty string, `nil`, `false`, an empty table, and a non-empty table) — no case errors, and the exact crash from the report (`char` as a table) was explicitly reproduced against the fix and confirmed safe via `pcall`.
+
 ## Checked and found clean
 
 Block-word filtering (linear scan, but over a small user-curated list — not worth caching) and the quest-link detection path (already gated behind a cheap substring check before the more expensive parse runs).
@@ -53,7 +73,7 @@ Block-word filtering (linear scan, but over a small user-curated list — not wo
 ## Files changed
 
 ```
-Browser.lua
+Browser.lua    (SetMathcKeyWords caching, OnChar crash fix)
 Message.lua
 Meeting.lua
 ```

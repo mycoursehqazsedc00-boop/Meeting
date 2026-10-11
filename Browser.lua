@@ -486,7 +486,7 @@ end)
 -- 修改输入法开始合成事件
 searchInput:SetScript("OnChar", function(char)
     -- 检测到中文字符输入开始
-    if char and string.byte(char) > 127 then
+    if type(char) == "string" and string.len(char) > 0 and string.byte(char) > 127 then
         Meeting.searchInfo.isComposing = true
     else
         -- 英文字符，立即处理
