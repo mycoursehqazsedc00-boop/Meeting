@@ -414,7 +414,7 @@ local applicantListFrame = Meeting.GUI.CreateListFrame({
             if this.applicant.name == Meeting.player then
                 return
             end
-            ChatFrame_OpenChat("/w " .. this.applicant.name, SELECTED_DOCK_FRAME or DEFAULT_CHAT_FRAME)
+            ChatFrame_OpenChat("/w " .. this.applicant.name .. " ", SELECTED_DOCK_FRAME or DEFAULT_CHAT_FRAME)
         end)
 
         f.nameFrame = Meeting.GUI.CreateText({
@@ -554,8 +554,10 @@ local applicantListFrame = Meeting.GUI.CreateListFrame({
                             break
                         end
                     end
-                    table.remove(activity.applicantList, i)
-                    Meeting.CreatorFrame:UpdateList()
+                    if i ~= -1 then
+                        table.remove(activity.applicantList, i)
+                        Meeting.CreatorFrame:UpdateList()
+                    end
                 end
             end
         })
@@ -643,7 +645,7 @@ function Meeting.CreatorFrame:UpdateList()
             frame.declineButton:Show()
         end
 
-        if applicant.status == Meeting.APPLICANT_STATUS.Accepted then
+        if applicant.status == Meeting.APPLICANT_STATUS.Invited then
             frame.acceptButton:SetText("Accepted")
             frame.acceptButton:Disable()
         elseif applicant.status == Meeting.APPLICANT_STATUS.None then

@@ -630,6 +630,7 @@ local blockButton = Meeting.GUI.CreateButton({
                         desc = "Enter keyword to block",
                         func = function()
                             -- 创建添加屏蔽词的输入对话框
+                            local blockInput
                             local dialog = Meeting.GUI.CreateDialog({
                                 parent = Meeting.BrowserFrame,
                                 anchor = {
@@ -672,12 +673,13 @@ local blockButton = Meeting.GUI.CreateButton({
                                     })
                                     Meeting.GUI.SetBackground(input, Meeting.GUI.Theme.Black, Meeting.GUI.Theme.White)
                                     input:SetFocus()
+                                    blockInput = input
                                     
                                     return frame
                                 end,
                                 _confirm = function()
-                                    local input = this:GetParent():GetChildren()
-                                    while input and not input.GetText do
+                                    local input = blockInput
+                                    while false do
                                         input = input:GetChildren()
                                     end
                                     if input and input.GetText then
@@ -730,10 +732,10 @@ local blockButton = Meeting.GUI.CreateButton({
                         desc = "Reset block words to default",
                         func = function()
 							MEETING_DB.blockWords = { -- 新增重置默认屏蔽词 by 武藤纯子酱 2025.12.30
-								'加速器',
-								'淘宝',
-								'代充',
-								'代练'
+								'Boost',
+								'Taobao',
+								'Gold',
+								'Powerlevel'
 							}
 							Meeting.blockWords = MEETING_DB.blockWords -- 新增读取配置文件中的屏蔽关键词 by 武藤纯子酱 2025.12.30
                             DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00Meeting|r: Reset block words")
@@ -1132,14 +1134,14 @@ local activityListFrame = Meeting.GUI.CreateListFrame({
                     if Meeting.WT and Meeting.WT.L then
                         GameTooltip:AddLine(Meeting.WT.L("-- 成员 --"), 0.75, 0.75, 0.75, 1)
                     else
-                        GameTooltip:AddLine("-- 成员 --", 0.75, 0.75, 0.75, 1)
+                        GameTooltip:AddLine("-- Members --", 0.75, 0.75, 0.75, 1)
                     end
                     for k, v in pairs(classMap) do
                         local clsname = Meeting.GetClassLocaleName(k)
                         if Meeting.WT and Meeting.WT.FormatClassCount then
                             GameTooltip:AddLine(Meeting.WT.FormatClassCount(clsname, v), 1, 1, 1, 1)
                         else
-                            GameTooltip:AddLine(clsname .. " " .. v .. "个", 1, 1, 1, 1)
+                            GameTooltip:AddLine(clsname .. " x" .. v, 1, 1, 1, 1)
                         end
                     end
                 end
@@ -1159,7 +1161,7 @@ local activityListFrame = Meeting.GUI.CreateListFrame({
             if this.leader == Meeting.player then
                 return
             end
-            ChatFrame_OpenChat("/w " .. this.leader, SELECTED_DOCK_FRAME or DEFAULT_CHAT_FRAME)
+            ChatFrame_OpenChat("/w " .. this.leader .. " ", SELECTED_DOCK_FRAME or DEFAULT_CHAT_FRAME)
         end)
 
         f.nameFrame = Meeting.GUI.CreateText({
@@ -1252,7 +1254,7 @@ local activityListFrame = Meeting.GUI.CreateListFrame({
             },
             click = function()
                 if f.isChat then
-                    ChatFrame_OpenChat("/w " .. f.leader, SELECTED_DOCK_FRAME or DEFAULT_CHAT_FRAME)
+                    ChatFrame_OpenChat("/w " .. f.leader .. " ", SELECTED_DOCK_FRAME or DEFAULT_CHAT_FRAME)
                 else
                     local frame = CreateRequestPrompt({
                         parent = Meeting.BrowserFrame,
@@ -1538,7 +1540,7 @@ function Meeting.BrowserFrame:UpdateList(force, scroll)
     
     -- 更新搜索结果显示 by 武藤纯子酱 2025.9.24
     if Meeting.searchInfo.text ~= "" then
-        searchInput:SetText(Meeting.searchInfo.text)
+        -- keep active search input untouched
     end
 end
 

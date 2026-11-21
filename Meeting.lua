@@ -1,5 +1,11 @@
 local AFK_MESSAGE = string.format(MARKED_AFK_MESSAGE, DEFAULT_AFK_MESSAGE)
 
+local DECLINE_GROUP_PATTERN
+if ERR_DECLINE_GROUP_S then
+    local escaped = string.gsub(ERR_DECLINE_GROUP_S, "([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")
+    DECLINE_GROUP_PATTERN = "^" .. string.gsub(escaped, "%%%%s", "(.+)") .. "$"
+end
+
 local function GetMembers()
     local members = {}
     for i = 1, GetNumRaidMembers() do
@@ -33,7 +39,8 @@ local function OnMemberChange()
     local activity = joined or Meeting:FindActivity(Meeting.player)
     if activity then
         needUpdateBrowser = true
-        for i, applicant in ipairs(activity.applicantList) do
+        for i = table.getn(activity.applicantList), 1, -1 do
+            local applicant = activity.applicantList[i]
             local isMember = false
             for _, member in ipairs(Meeting.members) do
                 if member == applicant.name then
@@ -62,8 +69,7 @@ local function OnMemberChange()
     local ml = table.getn(Meeting.members)
     local isLeader = ml == 0 or (ml > 0 and IsRaidLeader() == 1)
     if not isLeader then
-        local activity
-        Meeting:FindActivity(Meeting.player)
+        local activity = Meeting:FindActivity(Meeting.player)
         if activity and not activity:IsChat() then
             Meeting.Message.CloseActivity()
             needUpdateBrowser = true
@@ -115,14 +121,14 @@ f:SetScript("OnEvent", function()
         local _, _, source = string.find(arg4, "(%d+)%.")
         local name = nil
         if source then
-            _, name = GetChannelName(source)
+            _, name = GetChannelName(tonumber(source))
         end
         if name then
             if name == Meeting.channel and string.startswith(arg1, "Meeting:") then
                 Meeting.Message.OnRecv(arg2, arg1)
             else
                 local lowname = string.lower(name)
-                if lowname == "world" or lowname == "china" or lowname == "world" or lowname == "lfg" then
+                if lowname == "world" or lowname == "china" or lowname == "lfg" then
                     lowname = "world"
                     Meeting.Message.OnRecvFormChat(lowname, arg2, arg1)
                 end
@@ -187,7 +193,15 @@ f:SetScript("OnEvent", function()
             Meeting.Message.CloseActivity(true)
         end
     elseif event == "CHAT_MSG_SYSTEM" then
-        local _, _, playerName = string.find(arg1, "^(.+)拒绝了你邀请其加入队伍的请求。")
+        local playerName
+        if DECLINE_GROUP_PATTERN then
+            local _, _, matched = string.find(arg1, DECLINE_GROUP_PATTERN)
+            playerName = matched
+        end
+        if not playerName then
+            local _, _, matched = string.find(arg1, "^(.+)拒绝了你邀请其加入队伍的请求。")
+            playerName = matched
+        end
         if playerName then
             Meeting.DeclinedInvite(playerName)
         end
@@ -203,7 +217,13 @@ f:SetScript("OnEvent", function()
 end)
 
 Meeting.isHover = false
+local hoverElapsed = 0
 f:SetScript("OnUpdate", function()
+    hoverElapsed = hoverElapsed + arg1
+    if hoverElapsed < 0.1 then
+        return
+    end
+    hoverElapsed = 0
     if not Meeting.MainFrame:IsShown() or not Meeting.BrowserFrame:IsShown() then
         return
     end
@@ -523,14 +543,6 @@ function Meeting:OnCreate(id, code, comment, level, class, members, hc, classnum
         return  -- 如果包含屏蔽词，不创建活动
     end
 
-    -- 跳过跨阵营活动 (faction为空表示来自旧版本客户端，不过滤，保持兼容)
-    if faction and faction ~= "Neutral" then
-        local myFaction = UnitFactionGroup("player")
-        if myFaction and myFaction ~= "Neutral" and faction ~= myFaction then
-            return
-        end
-    end
-
     local item, index = Meeting:FindActivity(id)
     local code = Meeting.GetActivityInfo(code).key
     local class = Meeting.NumberToClass(tonumber(class))
@@ -654,8 +666,10 @@ function Meeting:OnDecline(id, name)
                 break
             end
         end
-        table.remove(Meeting.joinedActivity.applicantList, i)
-        Meeting.CreatorFrame:UpdateList()
+        if i ~= -1 then
+            table.remove(Meeting.joinedActivity.applicantList, i)
+            Meeting.CreatorFrame:UpdateList()
+        end
     end
     Meeting.FloatFrame.Update()
 end
@@ -750,7 +764,8 @@ end
 C_Timer.NewTicker(5, function()
     local now = time()
     local update = false
-    for index, activity in ipairs(Meeting.activities) do
+    for index = table.getn(Meeting.activities), 1, -1 do
+        local activity = Meeting.activities[index]
         local rm = false
         if activity:IsChat() then
             rm = activity.updated + 60 < now

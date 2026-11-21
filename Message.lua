@@ -217,6 +217,9 @@ function Message.Send(event, msg)
 end
 
 function Message.CreateActivity(code, comment)
+    if not code or code == "" then
+        return
+    end
     local faction = UnitFactionGroup("player") or "Neutral" -- english token (e.g. "Alliance"/"Horde"), locale-independent
     local data = string.format("%s:%s:%d:%d:%d:%d:%s:%s", code,
         string.isempty(comment) and "_" or comment, UnitLevel("player"),

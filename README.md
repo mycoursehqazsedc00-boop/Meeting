@@ -1,79 +1,54 @@
-# Meeting
+# Meeting (Patched for WoW 1.12 / Turtle WoW)
 
-A group-finder/LFG assistant: broadcasts and browses group listings for dungeons, raids, quests, and world bosses over a shared addon channel, with passive detection of LFG-style messages in normal chat.
+> A group-finder / LFG assistant for Vanilla WoW 1.12.x and Turtle WoW that broadcasts and browses group listings over a shared addon channel (`LFT`) and passively detects LFG/LFM messages in chat.
 
-## Client mods used
+## Client Mods Used
 
-**None.** Both changes in this update are internal — one pure client-side caching fix, one protocol-level feature addition using only native vanilla APIs (`UnitFactionGroup`). No external client mod is required for either.
+**None.** This addon runs on stock WoW 1.12.x (`Lua 5.0`) using native client APIs only.
+
+*(Optional addon integration: `WoWTranslate` for translating activity names, leader names, descriptions, and applicant notes.)*
 
 ## Features
 
-- Create and broadcast a group listing for Dungeons, Raids, Party Quests, Raid Quests, World Bosses (Azuregos, Emeriss, Lethon, Taerar, Ysondre, Lord Kazzak, Nerubian Overseer, Dark Reaver of Karazhan, Ostarius, Concavius, Cow King), and other categories, with member count and Hardcore-mode status
-- Browse and filter active listings by category, specific activity, or multiple activities at once
-- Passive chat scanning: detects LFG/LFM-style messages in configured channels and surfaces them even from players not using the addon
-- Request to join a listed group; listing owner can accept or decline requests
-- Block-word filtering for both listing comments and poster names
-- Quest-link detection and matching
-- Group class-composition tracking and display
-- Version broadcast and mismatch notice, so outdated users know to update
-- Optional translation integration (`WoWTranslate`) for listings in other languages
-- Minimap icon, configurable font size, background opacity, and border style
+- **Group Listings (`Browse` & `Manage`):** Create, edit, and browse listings for Dungeons, Raids, Party Quests, Raid Quests, World Bosses, and other activities, with member count, class composition tooltip, and Hardcore (`HC`) indicator.
+- **Multi-Activity & Keyword Filtering:** Filter by a single activity, multiple activities across categories, or live text search (with IME composition delay handling).
+- **Passive Chat Scanning:** Detects LFG/LFM-style messages and quest links (`|Hquest:...|h`) in `world` / `china` / `lfg` and `hardcore` channels, surfacing listings even from players without the addon.
+- **Role-Based Applications:** Apply to listings with Tank / Healer / Damage role selection and an optional note; leaders can accept, decline, or double-click to whisper applicants.
+- **Block-Word Filtering:** Filter out unwanted listings by leader name or description via UI (`Block Words`) or `/meeting block` commands.
+- **UI Customization:** Resizable main window, movable floating `Meeting` button, minimap button (with `MinimapButtonFrame` support), configurable font size, background opacity, and Blizzard-style borders.
+- **Protocol Compatibility:** Fully backward- and forward-compatible with all `Meeting` versions over the shared `LFT` channel.
 
-## New feature in this update
+## What Was Added / Improved
 
-**Faction awareness in the group-listing sync protocol.** Previously there was no faction handling anywhere in the addon. Because the addon's shared channel is a custom channel — unlike Blizzard's built-in faction-locked channels (Trade/General/etc.) — it can be joined by both factions, meaning Alliance and Horde players could see each other's listings with no way to tell them apart, despite being unable to ever actually group together. `Message.CreateActivity` now broadcasts the poster's faction, and `Meeting:OnCreate` filters out confirmed cross-faction listings before they're ever shown.
+- **Fixed:**
+  - `OnMemberChange` unassigned `local activity` bug so your own listing automatically closes when losing group leadership or joining another group.
+  - Forward `ipairs` + `table.remove` loops in `OnMemberChange` and the 5-second expiry ticker converted to reverse iteration to prevent skipping elements.
+  - `table.remove(..., -1)` out-of-bounds removal when an applicant is not found in `OnDecline` and `CreatorFrame` decline handler.
+  - Applicant `"Accepted"` button state not persisting on scroll/refresh (`APPLICANT_STATUS.Accepted` -> `APPLICANT_STATUS.Invited`).
+  - Invite decline system message detection now uses `ERR_DECLINE_GROUP_S` (with Chinese fallback) so it works on English and non-English clients.
+  - Removed the hard cross-faction listing filter in `OnCreate` so cross-faction realms can see and join all compatible listings (while keeping the optional trailing `faction` field in the wire protocol for full version compatibility).
+  - `Reset Block Words` UI action now resets to English defaults (`Boost`, `Taobao`, `Gold`, `Powerlevel`) matching `/meeting block reset`, and English tooltip fallbacks (`-- Members --`, `xN`) replace leftover non-English strings.
+  - `Add Block Word` dialog now uses a direct `blockInput` reference instead of `GetChildren()`, and `UpdateList` no longer overwrites the search input while typing.
+  - Double-click / Whisper (`ChatFrame_OpenChat`) now includes a trailing space after the player name (`/w <name> `).
+  - Guarded `Message.CreateActivity` against empty activity codes and cleaned up `CHAT_MSG_CHANNEL` channel index parsing.
+- **Improved:**
+  - Throttled `MainFrame` hover-check `OnUpdate` to `0.1s` intervals to reduce per-frame overhead.
+  - Cached `SetMathcKeyWords()` with a filter signature so passive chat scanning no longer rebuilds the full keyword list on every chat message.
+  - Hardened search box `OnChar` against non-string / empty inputs (`type(char) == "string"` and `string.len(char) > 0`).
 
-### Backward compatibility — the part that actually mattered here
-The protocol is a plain colon-delimited positional string. The new field is **appended at the end only**, following the same pattern already used for an earlier field (`classnum`) — the only safe way to extend this kind of protocol without shifting existing field positions.
+## Usage
 
-- **An older client's listing, read by this updated client:** the faction field is naturally `nil` (Lua's `unpack()` behavior on a shorter list) — no error. A `nil` faction is explicitly treated as "unknown, don't filter," so behavior is **identical to before this update** when talking to an older peer.
-- **This client's listing, read by an older client:** the old client simply never reads the extra trailing value — no error.
-- Any ambiguous case (`"Neutral"`, or faction unknown on either side) is never filtered — biased toward showing a possibly-unjoinable listing (a minor annoyance) over ever hiding a legitimate one (a silent functionality loss).
+- `/meeting` — Show command help
+- `/meeting visible` — Show/hide the floating `Meeting` button
+- `/meeting toggle` — Show/hide the main `Meeting` window
+- `/meeting reset` — Reset window size, positions, settings, and default block words
+- `/meeting block add <keyword>` — Add a block word
+- `/meeting block del <keyword>` — Remove a block word
+- `/meeting block list` — List current block words
+- `/meeting block clear` — Clear all block words
+- `/meeting block reset` — Reset block words to defaults
 
-**Verified, not assumed:**
-- End-to-end wire-format test using the addon's actual split function, across all three directions: old listing → new client, new listing → new client, new listing → old client. Confirmed `nil` where expected, confirmed correct parsing where expected, confirmed no corruption in either direction.
-- Filtering logic tested across 9 scenarios: both old-client cases (never filtered), same-faction, cross-faction, and every ambiguous/unknown combination.
+## Credits & License
 
-## What changed — performance
-
-**`SetMathcKeyWords()` rebuilt its entire keyword-matching list — walking the full activity category tree — on every single chat message** passed through the passive-detection path, even though the result only changes when the user edits their search filter. Added a cheap signature cache (category + selected activity codes); the expensive rebuild now only runs when that signature actually changes.
-
-**Verified against the actual extracted, patched function** (not a reimplementation), with an instrumented rebuild counter: a real filter change correctly triggers exactly one rebuild with correct content; 50 subsequent calls with an unchanged filter trigger zero further rebuilds; switching between multi-select and single-select filter modes correctly invalidates and rebuilds.
-
-## Bug fix — crash report from live use
-
-A user hit this in-game after installing the earlier version of this patch:
-```
-Meeting\Browser.lua:489: bad argument #1 to `byte' (string expected, got table)
-```
-**This bug predates this patch** — it's the exact same code, unmodified, that existed in the original addon at line 472; it only shifted to line 489 because the `SetMathcKeyWords` fix above added lines earlier in the file. Confirmed by diffing against the original before investigating further.
-
-The search box's `OnChar` handler (for detecting the start of Chinese-character IME composition) called `string.byte(char)` without checking that `char` was actually a non-empty string first:
-```lua
-if char and string.byte(char) > 127 then
-```
-In practice `char` can arrive as a table in certain input scenarios, which crashes `string.byte` outright. The same line was also vulnerable to a second, related crash on an *empty* string input (`string.byte("")` returns `nil`, and `nil > 127` errors too) — never reported, but the same class of bug, fixed at the same time. Changed to:
-```lua
-if type(char) == "string" and string.len(char) > 0 and string.byte(char) > 127 then
-```
-Any unexpected input (table, empty string) now safely falls through to the "not composing" branch — the safer default, since it just means an immediate search instead of a delayed one, rather than crashing or getting stuck.
-
-**Verified:** tested the fixed condition against 7 input shapes (plain ASCII, a real UTF-8 multi-byte character, empty string, `nil`, `false`, an empty table, and a non-empty table) — no case errors, and the exact crash from the report (`char` as a table) was explicitly reproduced against the fix and confirmed safe via `pcall`.
-
-## Checked and found clean
-
-Block-word filtering (linear scan, but over a small user-curated list — not worth caching) and the quest-link detection path (already gated behind a cheap substring check before the more expensive parse runs).
-
-## Verification
-
-- All three changed files (`Browser.lua`, `Message.lua`, `Meeting.lua`) syntax-checked (`luac5.1 -p`) — clean.
-- Patch reapplies to a clean copy of the originals and reproduces the shipped files exactly, byte for byte.
-- Not tested in a live client, or against an actual older build running on a second account — the wire-format and filtering-logic tests specifically exercise the backward-compatibility claim, but a real cross-version test in-game is the only way to be fully certain.
-
-## Files changed
-
-```
-Browser.lua    (SetMathcKeyWords caching, OnChar crash fix)
-Message.lua
-Meeting.lua
-```
+- Original addon: 龟壳, 武藤纯子酱, Wind, Sunelegy (`Meeting` v1.1.5)
+- License: Same as original addon.
