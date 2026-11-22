@@ -6,6 +6,16 @@ if ERR_DECLINE_GROUP_S then
     DECLINE_GROUP_PATTERN = "^" .. string.gsub(escaped, "%%%%s", "(.+)") .. "$"
 end
 
+local function IsGroupLeader()
+    if GetNumRaidMembers() > 0 then
+        return IsRaidLeader() == 1
+    elseif GetNumPartyMembers() > 0 then
+        return IsPartyLeader() == 1
+    end
+    return true
+end
+Meeting.IsGroupLeader = IsGroupLeader
+
 local function GetMembers()
     local members = {}
     for i = 1, GetNumRaidMembers() do
@@ -66,8 +76,7 @@ local function OnMemberChange()
         needUpdateCreator = true
     end
 
-    local ml = table.getn(Meeting.members)
-    local isLeader = ml == 0 or (ml > 0 and IsRaidLeader() == 1)
+    local isLeader = Meeting.IsGroupLeader()
     if not isLeader then
         local activity = Meeting:FindActivity(Meeting.player)
         if activity and not activity:IsChat() then
@@ -137,7 +146,7 @@ f:SetScript("OnEvent", function()
     elseif event == "CHAT_MSG_HARDCORE" then
         Meeting.Message.OnRecvFormChat("hardcore", arg2, arg1)
     elseif event == "PARTY_LEADER_CHANGED" then
-        if table.getn(Meeting.members) > 0 and IsRaidLeader() ~= 1 then
+        if table.getn(Meeting.members) > 0 and not Meeting.IsGroupLeader() then
             if Meeting:FindActivity(Meeting.player) then
                 Meeting.Message.CloseActivity()
             end

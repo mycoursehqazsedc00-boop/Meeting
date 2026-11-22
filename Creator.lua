@@ -590,7 +590,7 @@ function Meeting.CreatorFrame:UpdateList()
     end
 
     local activity = Meeting.joinedActivity or Meeting:FindActivity(Meeting.player)
-    local notLeader = IsRaidLeader() ~= 1
+    local notLeader = not Meeting.IsGroupLeader()
     applicantListFrame:Reload(activity and table.getn(activity.applicantList) or 0, function(frame, index)
         local applicant = activity.applicantList[index]
         local name = applicant.name
@@ -667,8 +667,7 @@ function Meeting.CreatorFrame.UpdateActivity()
         return
     end
 
-    local ml = table.getn(Meeting.members)
-    local isLeader = ml == 0 or (ml > 0 and IsRaidLeader() == 1)
+    local isLeader = Meeting.IsGroupLeader()
     if isLeader then
         if Meeting.createInfo.code then
             selectButton:SetText(Meeting.GetActivityInfo(Meeting.createInfo.code).name)
@@ -698,7 +697,7 @@ function Meeting.CreatorFrame.UpdateActivity()
             closeButton:Disable()
         end
 
-        if table.getn(Meeting.members) > 0 and IsRaidLeader() ~= 1 then
+        if not Meeting.IsGroupLeader() then
             createButton:Hide()
             closeButton:Hide()
             translateButton:Hide()

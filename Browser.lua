@@ -1269,8 +1269,8 @@ local activityListFrame = Meeting.GUI.CreateListFrame({
                         confirm = function(text, role)
                             Meeting.Message.Request(f.id, text, role)
                             local activity = Meeting:FindActivity(f.id)
-                            activity.applicantStatus = Meeting.APPLICANT_STATUS.Invited
-                            Meeting.BrowserFrame:UpdateActivity(activity)
+                            if activity then activity.applicantStatus = Meeting.APPLICANT_STATUS.Invited
+                            Meeting.BrowserFrame:UpdateActivity(activity) end
                             f.requestButton:Disable()
                         end
                     })

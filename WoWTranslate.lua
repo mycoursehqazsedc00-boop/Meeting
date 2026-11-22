@@ -210,10 +210,7 @@ function Meeting.WT.L(text)
 end
 
 function Meeting.WT.FormatClassCount(clsname, count)
-    if Meeting.WT.IsEnabled() then
-        return clsname .. " x" .. count
-    end
-    return clsname .. " " .. count .. "个"
+    return clsname .. " x" .. count
 end
 
 function Meeting.WT.LookupCached(text)
