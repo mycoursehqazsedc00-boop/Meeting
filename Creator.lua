@@ -386,14 +386,15 @@ local applicantListFrame = Meeting.GUI.CreateListFrame({
             if isHover then
                 GameTooltip:SetOwner(this, "ANCHOR_RIGHT", 40)
                 GameTooltip:SetText(this.applicant.name, this.classColor.r, this.classColor.g, this.classColor.b, 1)
-                if this.applicant.score > 0 then
+                if (this.applicant.score or 0) > 0 then
                     GameTooltip:AddLine("Item Level: " .. this.applicant.score)
                 end
 
-                local color = GetDifficultyColor(this.applicant.level)
+                local appLevel = this.applicant.level or 0
+                local color = GetDifficultyColor(appLevel)
                 GameTooltip:AddLine(
                     format('%s |cff%02x%02x%02x%s|r', LEVEL, color.r * 255, color.g * 255, color.b * 255,
-                        this.applicant.level), 1, 1, 1)
+                        appLevel), 1, 1, 1)
 
                 if this.applicant.comment ~= "_" then
                     if Meeting.WT and Meeting.WT.AddTooltipLine then

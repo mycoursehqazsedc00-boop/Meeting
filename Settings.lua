@@ -164,7 +164,8 @@ local function CreateSettingsFrame()
         anchor = {
             point = "TOP",
             relative = frame,
-            relativePoint = "TOP",
+            relativePoint = "TOPRIGHT",
+            x = -58,
             y = -48,
         },
     })
@@ -178,7 +179,7 @@ local function CreateSettingsFrame()
         anchor = {
             point = "TOPRIGHT",
             relative = frame,
-            relativePoint = "TOP",
+            relativePoint = "TOPRIGHT",
             x = -72,
             y = -44,
         },
@@ -195,7 +196,7 @@ local function CreateSettingsFrame()
         anchor = {
             point = "TOPRIGHT",
             relative = frame,
-            relativePoint = "TOP",
+            relativePoint = "TOPRIGHT",
             x = -16,
             y = -44,
         },
@@ -224,7 +225,8 @@ local function CreateSettingsFrame()
         anchor = {
             point = "TOP",
             relative = frame,
-            relativePoint = "TOP",
+            relativePoint = "TOPRIGHT",
+            x = -58,
             y = -84,
         },
     })
@@ -238,7 +240,7 @@ local function CreateSettingsFrame()
         anchor = {
             point = "TOPRIGHT",
             relative = frame,
-            relativePoint = "TOP",
+            relativePoint = "TOPRIGHT",
             x = -72,
             y = -80,
         },
@@ -255,7 +257,7 @@ local function CreateSettingsFrame()
         anchor = {
             point = "TOPRIGHT",
             relative = frame,
-            relativePoint = "TOP",
+            relativePoint = "TOPRIGHT",
             x = -16,
             y = -80,
         },

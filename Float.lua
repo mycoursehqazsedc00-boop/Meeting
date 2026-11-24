@@ -40,7 +40,7 @@ floatFrame.crown = crown
 
 floatFrame:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_BOTTOMLEFT", 85, -5)
-    local activity = Meeting:FindActivity(Meeting.player)
+    local activity = Meeting.joinedActivity or Meeting:FindActivity(Meeting.player)
     GameTooltip:SetText((activity and table.getn(activity.applicantList) or 0) .. " applicants", 1, 1, 1, 1)
     GameTooltip:AddLine(table.getn(Meeting.activities) .. " activities", 1, 1, 1, 1)
     GameTooltip:Show()

@@ -490,10 +490,14 @@ function GUI.CreateListFrame(config)
         local offset = FauxScrollFrame_GetOffset(self)
         for i = 1, config.display, 1 do
             local j = i + offset
-            if j <= num then
-                local cell = frame.pool[i]
-                cell:Show()
-                cb(cell, j)
+            local cell = frame.pool[i]
+            if cell then
+                if j <= num then
+                    cell:Show()
+                    cb(cell, j)
+                else
+                    cell:Hide()
+                end
             end
         end
     end
@@ -586,9 +590,25 @@ function GUI.CreateInput(config)
     return frame
 end
 
+GUI._dialogPool = GUI._dialogPool or {}
+
 function GUI.CreateDialog(config)
     if Meeting.GUI.currentDialog then
         Meeting.GUI.currentDialog:Hide()
+    end
+
+    if config.dialogKey and GUI._dialogPool[config.dialogKey] then
+        local cached = GUI._dialogPool[config.dialogKey]
+        if cached._title then
+            cached._title:SetText(config.title or "")
+        end
+        cached._confirmFn = config._confirm
+        if config.onReuse then
+            config.onReuse(cached)
+        end
+        cached:Show()
+        Meeting.GUI.currentDialog = cached
+        return cached
     end
 
     config.width = config.width or 300
@@ -610,11 +630,13 @@ function GUI.CreateDialog(config)
         text = config.title,
         color = GUI.Theme.White
     })
+    parent._title = title
 
     local customFrame = nil
     if config.onCustomFrame then
         customFrame = config.onCustomFrame(parent, title)
     end
+    parent._confirmFn = config._confirm
 
     GUI.CreateButton({
         parent = parent,
@@ -630,7 +652,9 @@ function GUI.CreateDialog(config)
             y = -10
         },
         click = function()
-            config._confirm()
+            if parent._confirmFn then
+                parent._confirmFn()
+            end
             parent:Hide()
             Meeting.GUI.currentDialog = nil
         end
@@ -654,6 +678,9 @@ function GUI.CreateDialog(config)
             Meeting.GUI.currentDialog = nil
         end
     })
+    if config.dialogKey then
+        GUI._dialogPool[config.dialogKey] = parent
+    end
     Meeting.GUI.currentDialog = parent
     return parent
 end

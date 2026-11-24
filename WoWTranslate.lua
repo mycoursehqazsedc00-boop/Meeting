@@ -226,12 +226,14 @@ function Meeting.WT.LookupCached(text)
         return quick
     end
     if WoWTranslate_CacheGet then
-        local cached, found = WoWTranslate_CacheGet("meeting:" .. text)
+        -- Unified cache key: check shared raw key first (hits WoWTranslate & DBB),
+        -- then fall back to legacy "meeting:" prefix from older SavedVariables.
+        local cached, found = WoWTranslate_CacheGet(text)
         if found then
             commentCache[text] = cached
             return cached
         end
-        cached, found = WoWTranslate_CacheGet(text)
+        cached, found = WoWTranslate_CacheGet("meeting:" .. text)
         if found then
             commentCache[text] = cached
             return cached
@@ -285,28 +287,34 @@ local function PumpTranslateQueue()
                 FlushTranslateWaiters(text, text)
             else
                 translateInFlight = translateInFlight + 1
+                local callbackFired = false
                 local ok = WoWTranslate_API.Translate(text, function(translation, err)
+                    callbackFired = true
                     translateInFlight = translateInFlight - 1
+                    if translateInFlight < 0 then translateInFlight = 0 end
                     local result = text
                     if translation and translation ~= "" then
                         commentCache[text] = translation
                         if WoWTranslate_CacheSave then
-                            WoWTranslate_CacheSave("meeting:" .. text, translation)
+                            WoWTranslate_CacheSave(text, translation)
                         end
                         result = translation
                     end
                     FlushTranslateWaiters(text, result)
                     PumpTranslateQueue()
-                end, "zh")
+                end, "zh", "LOW")
                 if not ok then
-                    translateInFlight = translateInFlight - 1
-                    table.insert(translateQueue, 1, text)
-                    if not translateQueue._retryScheduled then
-                        translateQueue._retryScheduled = true
-                        C_Timer.After(0.25, function()
-                            translateQueue._retryScheduled = nil
-                            PumpTranslateQueue()
-                        end)
+                    if not callbackFired then
+                        translateInFlight = translateInFlight - 1
+                        if translateInFlight < 0 then translateInFlight = 0 end
+                        table.insert(translateQueue, 1, text)
+                        if not translateQueue._retryScheduled then
+                            translateQueue._retryScheduled = true
+                            C_Timer.After(0.25, function()
+                                translateQueue._retryScheduled = nil
+                                PumpTranslateQueue()
+                            end)
+                        end
                     end
                     return
                 end
@@ -505,3 +513,26 @@ function Meeting.WT.AddTooltipLine(text, r, g, b, a)
     end
     GameTooltip:AddLine(Meeting.WT.TranslateSync(text), r or 1, g or 1, b or 1, a or 1)
 end
+
+-- Subscribe to WoWTranslate Hub ON_TRANSLATED push events (zero duplicate DLL calls)
+local wtHubFrame = CreateFrame("Frame")
+wtHubFrame:RegisterEvent("PLAYER_LOGIN")
+wtHubFrame:SetScript("OnEvent", function()
+    if type(WoWTranslate_RegisterCallback) ~= "function" then return end
+    WoWTranslate_RegisterCallback("ON_TRANSLATED", function(rawText, translated)
+        if not rawText or rawText == "" or not translated or translated == "" then return end
+        commentCache[rawText] = translated
+        if translatePendingByText[rawText] then
+            FlushTranslateWaiters(rawText, translated)
+        end
+        if Meeting.WT.IsEnabled() and Meeting.BrowserFrame and Meeting.BrowserFrame:IsShown() and Meeting.activities then
+            for i = 1, table.getn(Meeting.activities) do
+                local act = Meeting.activities[i]
+                if act and act.comment == rawText then
+                    Meeting.BrowserFrame:UpdateList()
+                    break
+                end
+            end
+        end
+    end)
+end)

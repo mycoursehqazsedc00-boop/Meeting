@@ -82,6 +82,13 @@ end
 function Meeting.GetClassRGBColor(class, unitname)
     local rgb = RAID_CLASS_COLORS[class]
     if not class or not rgb then
+        -- Cross-faction class lookup via ClassicAPI C_PlayerCache (if installed)
+        if unitname and C_PlayerCache and type(C_PlayerCache.GetPlayerInfoByName) == "function" then
+            local _, englishClass = C_PlayerCache.GetPlayerInfoByName(unitname)
+            if englishClass and RAID_CLASS_COLORS[englishClass] then
+                return RAID_CLASS_COLORS[englishClass]
+            end
+        end
         if SCCN_storage then
             local cache = SCCN_storage[unitname]
             if cache then
@@ -190,7 +197,7 @@ Meeting.Categories = {
                 key = "RFK",
                 name = "Razorfen Kraul",
                 minLevel = 29,
-                match = { "剃刀", "rfk", "rfd", "razorfen" },
+                match = { "剃刀", "rfk", "razorfen" },
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
@@ -225,7 +232,7 @@ Meeting.Categories = {
                 key = "RFD",
                 name = "Razorfen Downs",
                 minLevel = 36,
-                match = { "剃刀", "rfk", "rfd", "razorfen" },
+                match = { "剃刀", "rfd", "razorfen" },
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
@@ -422,7 +429,7 @@ Meeting.Categories = {
                 name = "Lower Karazhan Halls",
                 minLevel = 60,
                 members = 10,
-                match = { "10人卡拉赞", "10人klz", "10klz", "klz10", "klz下层", "下层klz", "下层卡拉赞", "卡拉赞上层", "卡拉赞", "klz", "卡下", "lkh", "lower kara" },
+                match = { "10人卡拉赞", "10人klz", "10klz", "klz10", "klz下层", "下层klz", "下层卡拉赞", "卡拉赞", "klz", "卡下", "lkh", "lower kara" },
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
@@ -478,84 +485,84 @@ Meeting.Categories = {
                 key = "Azuregos",
                 name = "Azuregos",
                 members = 40,
-				match = { "蓝龙", "艾萨拉", "世界BOSS", "azuregos", "azshara", "wb" },		
+				match = { "蓝龙", "艾萨拉", "世界boss", "azuregos", "azshara", "wb" },		
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Emeriss",
                 name = "Emeriss",
                 members = 40,
-				match = { "绿龙", "菲拉斯", "辛特兰", "暮色森林", "灰谷", "世界BOSS", "green dragon", "wb" },	
+				match = { "绿龙", "菲拉斯", "辛特兰", "暮色森林", "灰谷", "世界boss", "green dragon", "wb" },	
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Lethon",
                 name = "Lethon",
                 members = 40,
-				match = { "绿龙", "菲拉斯", "辛特兰", "暮色森林", "灰谷", "世界BOSS", "green dragon", "wb" },		
+				match = { "绿龙", "菲拉斯", "辛特兰", "暮色森林", "灰谷", "世界boss", "green dragon", "wb" },		
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Taerar",
                 name = "Taerar",
                 members = 40,
-				match = { "绿龙", "菲拉斯", "辛特兰", "暮色森林", "灰谷", "世界BOSS", "green dragon", "wb" },	
+				match = { "绿龙", "菲拉斯", "辛特兰", "暮色森林", "灰谷", "世界boss", "green dragon", "wb" },	
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Ysondre",
                 name = "Ysondre",
                 members = 40,
-				match = { "绿龙", "菲拉斯", "辛特兰", "暮色森林", "灰谷", "世界BOSS", "green dragon", "wb" },	
+				match = { "绿龙", "菲拉斯", "辛特兰", "暮色森林", "灰谷", "世界boss", "green dragon", "wb" },	
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Kazzak",
                 name = "Lord Kazzak",
                 members = 40,
-				match = { "卡扎克", "诅咒之地", "世界BOSS", "kazzak", "wb" },			
+				match = { "卡扎克", "诅咒之地", "世界boss", "kazzak", "wb" },			
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },	
             {
                 key = "Nerubian",
                 name = "Nerubian Overseer",
                 members = 40,
-				match = { "蛛魔监工", "东瘟疫", "世界BOSS", "nerubian", "wb" },	
+				match = { "蛛魔监工", "东瘟疫", "世界boss", "nerubian", "wb" },	
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },	
             {
                 key = "DarkReaver",
                 name = "Dark Reaver of Karazhan",
                 members = 40,
-				match = { "黑暗掠夺者", "逆风小径", "世界BOSS", "dark reaver", "wb" },	
+				match = { "黑暗掠夺者", "逆风小径", "世界boss", "dark reaver", "wb" },	
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Ostarius",
                 name = "Ostarius",
                 members = 40,
-				match = { "奥兹塔里亚斯", "奥丹姆", "塔纳利斯", "世界BOSS", "ostarius", "wb" },
+				match = { "奥兹塔里亚斯", "奥丹姆", "塔纳利斯", "世界boss", "ostarius", "wb" },
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Concavius",
                 name = "Concavius",
                 members = 40,
-				match = { "空卡维斯", "虚空之子", "凄凉之地", "世界BOSS", "concavius", "wb" },	
+				match = { "空卡维斯", "虚空之子", "凄凉之地", "世界boss", "concavius", "wb" },	
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Cow",
                 name = "Cow King",
                 members = 40,
-				match = { "奶牛", "艾尔文森林", "世界BOSS", "cow", "wb" },	
+				match = { "奶牛", "艾尔文森林", "世界boss", "cow", "wb" },	
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
                 key = "Cla'ckora",
                 name = "Cla'ckora",
                 members = 40,
-				match = { "克拉科拉", "鱼人", "艾萨拉", "世界BOSS", "clackora", "murloc", "wb" },	
+				match = { "克拉科拉", "鱼人", "艾萨拉", "世界boss", "clackora", "murloc", "wb" },	
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },			
         }
@@ -585,7 +592,7 @@ Meeting.Categories = {
                 name = "Arathi Basin",
                 minLevel = 20,
                 members = 15,
-				match = { "阿拉希", "ALX", "ab", "arathi" },
+				match = { "阿拉希", "alx", "ab", "arathi" },
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
             {
@@ -601,7 +608,7 @@ Meeting.Categories = {
                 name = "World PvP",
                 minLevel = 1,
                 members = 40,
-				match = { "PVP", "pvp", "world pvp" },
+				match = { "pvp", "world pvp" },
 				nomatch = {}  -- 新增排除关键词 by 武藤纯子酱 2025.9.22
             },
         }
@@ -672,6 +679,9 @@ end
 local activityInfoMap = {}
 
 function Meeting.GetActivityInfo(code)
+    if not code or code == "" then
+        return Meeting.GetActivityInfo("OTHER")
+    end
     if activityInfoMap[code] then
         return activityInfoMap[code]
     end
@@ -736,25 +746,24 @@ for index, value in ipairs(fortyone) do
 end
 
 function Meeting.EncodeGroupClass()
-    local raid = false
+    local numRaid = GetNumRaidMembers()
     local arr = {}
     for _, value in ipairs(classNameMap) do
-        if value == Meeting.playerClass then
-            arr[value] = 1
-        else
-            arr[value] = 0
-        end
+        arr[value] = 0
     end
 
-	for i = 1, GetNumRaidMembers() do
-		raid = true
-		local _, class = UnitClass("raid" .. i)
-		if class then
-			arr[class] = (arr[class] or 0) + 1
+	if numRaid > 0 then
+		-- raid1..raidN already includes the player in WoW 1.12
+		for i = 1, numRaid do
+			local _, class = UnitClass("raid" .. i)
+			if class then
+				arr[class] = (arr[class] or 0) + 1
+			end
 		end
-	end
-
-	if not raid then
+	else
+		if Meeting.playerClass then
+			arr[Meeting.playerClass] = 1
+		end
 		for i = 1, GetNumPartyMembers() do
 			local _, class = UnitClass("party" .. i)
 			if class then
@@ -765,7 +774,8 @@ function Meeting.EncodeGroupClass()
 
     local result = ""
     for _, v in ipairs(classNameMap) do
-        local num = arr[v]
+        local num = arr[v] or 0
+        if num > 40 then num = 40 end
         result = result .. fortyone[num + 1]
     end
     return result

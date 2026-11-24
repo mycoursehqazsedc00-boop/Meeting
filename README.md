@@ -2,11 +2,16 @@
 
 > A group-finder / LFG assistant for Vanilla WoW 1.12.x and Turtle WoW that broadcasts and browses group listings over a shared addon channel (`LFT`) and passively detects LFG/LFM messages in chat.
 
-## Client Mods Used
+## Client Mods & Optional Addons Used
 
-**None.** This addon runs on stock WoW 1.12.x (`Lua 5.0`) using native client APIs only.
+| Mod / Addon | Purpose in this addon | Required? |
+|---|---|---|
+| **[ClassicAPI](https://github.com/brues-code/ClassicAPI)** | Calls `C_PlayerCache.GetPlayerInfoByName` in `Meeting.GetClassRGBColor` to display cross-faction class colors for chat-scraped leaders (`World` / `China` / `Hardcore`). | Optional |
+| **UnitXP SP3** | Calls `UnitXP("notify", "taskbarIcon")` (5s cooldown) when a new applicant applies to your group while alt-tabbed. | Optional |
+| **WoWTranslate** (v2.2 fork) | Shares the unified raw cache key (with legacy `"meeting:"` read fallback), uses `"LOW"` priority queue, and subscribes to `WoWTranslate_RegisterCallback("ON_TRANSLATED")` for zero-duplicate live updates. | Optional |
+| **DifficultBulletinBoard (DBB2)** | Shared Blacklist / Block Words synergy (`DBB2.api.IsMessageBlacklisted`) and `Meeting.QuickApply(leaderName)` bridge (`Alt+Click` a leader in DBB2 to open Meeting's Apply prompt directly). | Optional |
 
-*(Optional addon integration: `WoWTranslate` for translating activity names, leader names, descriptions, and applicant notes.)*
+No other client DLL mods (SuperWoW, Nampower, VanillaHelpers, WeirdUtils) are required or called by this addon. Runs on stock WoW 1.12.x (`Lua 5.0`).
 
 ## Features
 
@@ -31,14 +36,19 @@
   - `Add Block Word` dialog now uses a direct `blockInput` reference instead of `GetChildren()`, and `UpdateList` no longer overwrites the search input while typing.
   - Double-click / Whisper (`ChatFrame_OpenChat`) now includes a trailing space after the player name (`/w <name> `).
   - Guarded `Message.CreateActivity` against empty activity codes and cleaned up `CHAT_MSG_CHANNEL` channel index parsing.
+  - Raid member counting & class encoding: excluded `Meeting.player` from `GetMembers()` in raids (fixing off-by-+1 raid counts, premature auto-close at 9/10 or 39/40, and self-matching `joinedActivity`) and fixed `EncodeGroupClass()` double-counting the leader's class (with 40-man clamp).
+  - Quest link chat tracking: fixed `Message.OnRecvFormChat` truncating at the first `|h` and stopped passing `questID` as `classnum`.
+  - Vanilla 1.12 crash fixes: replaced undefined global `print(...)` calls with `DEFAULT_CHAT_FRAME:AddMessage(...)`, guarded `/meeting` whitespace/punctuation nil `cmd`, guarded malformed `LFT` wire fields (`code`, `level`, `members`, `score`), and used plain-text `string.find(..., 1, true)` in `CheckBlockWords` and keyword matching so magic characters (`[`, `(`, `%`, `-`) never throw pattern errors.
+  - UI & filter fixes: forward-declared `local searchInput` so dropdown filters clear the search box, fixed `OnChar` using `arg1` instead of a Lua 5.1 parameter, fixed Settings `-`/`+` buttons overlapping labels (`relativePoint = "TOPRIGHT"`), snapshotted `targetId` in the Apply dialog so list refreshes cannot misdirect applications, hid stale rows in `GUI.CreateListFrame:Reload`, fixed off-by-one in `UpdateActivity`, preserved the `"china"` channel category, fixed `lfg`-only case-insensitive chat filtering (no longer dropping `"lfm"` recruiters), lowercased uppercase match keywords (`世界boss`/`alx`/`pvp`/`|hquest:`), separated `RFK`/`RFD`/`LKH` match keywords, cleared `Meeting.joinedActivity` on 120s expiry, fixed `FloatFrame` tooltip for joined activities, and fixed `translateInFlight` double-decrement on synchronous DLL failures.
 - **Improved:**
-  - Throttled `MainFrame` hover-check `OnUpdate` to `0.1s` intervals to reduce per-frame overhead.
-  - Cached `SetMathcKeyWords()` with a filter signature so passive chat scanning no longer rebuilds the full keyword list on every chat message.
-  - Hardened search box `OnChar` against non-string / empty inputs (`type(char) == "string"` and `string.len(char) > 0`).
+  - **Hub-and-Spoke Synergy:** Unified `WoWTranslate` cache keys (removed `"meeting:"` save prefix), subscribed to `ON_TRANSLATED` push updates, added `"LOW"` queue priority, linked shared Blacklist with `DifficultBulletinBoard`, and exposed `Meeting.QuickApply(leaderName)`.
+  - **Client Mods & Memory:** Added ClassicAPI `C_PlayerCache` cross-faction class colors, UnitXP SP3 applicant taskbar alerts, `GUI.CreateDialog` `dialogKey` frame pooling (eliminating dialog frame leaks), and `/meeting status` diagnostics.
+  - Throttled `MainFrame` hover-check `OnUpdate` to `0.1s` intervals and cached `SetMathcKeyWords()` with a filter signature.
 
 ## Usage
 
 - `/meeting` — Show command help
+- `/meeting status` — Show `LFT` channel, client-mod, `WoWTranslate` Hub, and `DBB2` synergy status
 - `/meeting visible` — Show/hide the floating `Meeting` button
 - `/meeting toggle` — Show/hide the main `Meeting` window
 - `/meeting reset` — Reset window size, positions, settings, and default block words

@@ -11,32 +11,34 @@ local EVENTS = {
     VERSION = "V",
 }
 
-local function CheckBlockWords(playerName, message)
-    -- 如果玩家是自己，不屏蔽
+local function CheckBlockWords(playerName, message, skipDBB)
+    -- Never block self
     if playerName == Meeting.player then
         return false
     end
     
-    -- 检查消息是否为空
+    -- Skip empty messages
     if not message or message == "" or message == "_" then
         return false
     end
     
-    -- 检查屏蔽词列表是否存在
-    if not Meeting.blockWords or table.getn(Meeting.blockWords) == 0 then
-        return false
-    end
-    
-    -- 转换为小写进行不区分大小写的匹配
-    local lowerMessage = string.lower(message)
-    
-    -- 检查每个屏蔽词
-    for _, word in ipairs(Meeting.blockWords) do
-        if word and word ~= "" then
-            local lowerWord = string.lower(word)
-            if string.find(lowerMessage, lowerWord) then
-                return true
+    -- Check Meeting block words
+    if Meeting.blockWords and table.getn(Meeting.blockWords) > 0 then
+        local lowerMessage = string.lower(message)
+        for _, word in ipairs(Meeting.blockWords) do
+            if word and word ~= "" then
+                local lowerWord = string.lower(word)
+                if string.find(lowerMessage, lowerWord, 1, true) then
+                    return true
+                end
             end
+        end
+    end
+
+    -- Shared Blacklist synergy with DifficultBulletinBoard (if loaded)
+    if not skipDBB and type(DBB2) == "table" and DBB2.api and type(DBB2.api.IsMessageBlacklisted) == "function" then
+        if DBB2.api.IsMessageBlacklisted(message, playerName, true) then
+            return true
         end
     end
     
@@ -87,7 +89,7 @@ for _, category in ipairs(Meeting.Categories) do
     for _, value in ipairs(category.children) do
         if value.match then
             for _, match in ipairs(value.match) do
-                table.insert(matchText, match)
+                table.insert(matchText, string.lower(match))
             end
         end
     end
@@ -106,48 +108,33 @@ end
 distinct = nil
 
 function Message.OnRecvFormChat(channel, playerName, message)
-    -- 新增任务链接检测逻辑
-	if string.find(message, "|Hquest:") then
-		-- 安全解析任务链接：确保括号配对
-		local questStart = string.find(message, "|Hquest:")
+    -- Quest link detection: |Hquest:id:level|h[name]|h
+	if string.find(message, "|Hquest:", 1, true) then
+		local questStart = string.find(message, "|Hquest:", 1, true)
 		if questStart then
-			-- 查找对应的"]"
-			local bracketStart = string.find(message, "%[", questStart)
+			local bracketStart = string.find(message, "[", questStart, true)
 			if bracketStart then
-				local bracketEnd = string.find(message, "%]", bracketStart)
+				local bracketEnd = string.find(message, "]", bracketStart, true)
 				if bracketEnd then
-					-- 继续查找"|h"结束位置，确保格式完整
-					local pipeHStart = string.find(message, "|h", bracketEnd)
+					local pipeHStart = string.find(message, "|h", bracketEnd, true)
 					if pipeHStart then
-						-- 截取完整的任务链接部分（从questStart开始）
-						local linkPart = string.sub(message, questStart)
-						-- 查找链接结束位置
-						local linkEnd = string.find(linkPart, "|h")
-						if linkEnd then
-							linkPart = string.sub(linkPart, 1, linkEnd + 1) -- 包含|h
-							
-							-- 现在我们可以安全解析
-							-- 注意：魔兽世界1.12的任务链接格式是：|Hquest:id:level|h[name]|h
-							local _, _, questID, questLevel, questName = string.find(
-								linkPart, 
-								"|Hquest:(%d+):(%d+)|h%[([^%]]*)%]|h"
-							)
-							
-							-- 如果解析成功
-							if questID and questLevel and questName then
-								-- 自动创建任务追踪活动
-                                if Meeting.OnCreate then
-                                    Meeting:OnCreate(playerName, "QuestLink", 
-                                        questName,                    -- 任务名字
-                                        questLevel,                   -- 任务等级
-                                        "0",                          -- 职业占位
-                                        "0",                          -- 人数占位
-                                        "0",                          -- 硬核模式
-                                        questID                       -- 使用任务ID作为分类标识
-                                    )
-                                end
-								return
+						local linkPart = string.sub(message, questStart, pipeHStart + 1)
+						local _, _, questID, questLevel, questName = string.find(
+							linkPart,
+							"|Hquest:(%d+):(%d+)|h%[([^%]]*)%]|h"
+						)
+						if questID and questLevel and questName then
+							if Meeting.OnCreate then
+								Meeting:OnCreate(playerName, "QuestLink",
+									questName,
+									questLevel,
+									"0",
+									"0",
+									"0",
+									nil
+								)
 							end
+							return
 						end
 					end
 				end
@@ -159,14 +146,13 @@ function Message.OnRecvFormChat(channel, playerName, message)
     if activity and activity.IsChat and not activity:IsChat() then
         return
     end
-    if string.find(message, "求组") or string.find(message, "lfg") or string.find(message, "lfm") then
+    local lowerMessage = string.lower(message)
+    if string.find(lowerMessage, "求组", 1, true) or string.find(lowerMessage, "lfg", 1, true) then
         return
     end
     if CheckBlockWords(playerName, message) then
         return
     end
-    -- 修改匹配逻辑，添加多选状态检查和排除检查
-    local lowerMessage = string.lower(message)
     
     -- 获取当前的多选状态和排除关键词
     local matchs, nomatchs = SetMathcKeyWords()
@@ -177,7 +163,7 @@ function Message.OnRecvFormChat(channel, playerName, message)
     
     -- 先检查排除关键词
     for _, nomatch in ipairs(nomatchs) do
-        if string.find(lowerMessage, nomatch) then
+        if string.find(lowerMessage, string.lower(nomatch), 1, true) then
             return  -- 如果包含排除关键词，不创建活动
         end
     end
@@ -185,7 +171,7 @@ function Message.OnRecvFormChat(channel, playerName, message)
     -- 如果选择了"全部"或者没有选择任何过滤条件，使用原来的匹配逻辑
     if shouldMatchAll then
         for _, v in ipairs(matchText) do
-            if string.find(lowerMessage, v) then
+            if string.find(lowerMessage, v, 1, true) then
                 if Meeting.OnCreate then
                     Meeting:OnCreate(playerName, string.upper(channel), message, "0", "0", "0",
                         channel == "hardcore" and "1" or "0")
@@ -196,7 +182,7 @@ function Message.OnRecvFormChat(channel, playerName, message)
     else
         -- 多选状态下的匹配逻辑
         for _, match in ipairs(matchs) do
-            if string.find(lowerMessage, match) then
+            if string.find(lowerMessage, string.lower(match), 1, true) then
                 if Meeting.OnCreate then
                     Meeting:OnCreate(playerName, string.upper(channel), message, "0", "0", "0",
                         channel == "hardcore" and "1" or "0")
@@ -211,8 +197,8 @@ function Message.Send(event, msg)
     local channel = GetChannelName(Meeting.channel)
     if channel ~= 0 then
         SendChatMessage("Meeting:" .. event .. ":" .. msg, "CHANNEL", nil, channel)
-    else
-        print("Please join " .. Meeting.channel .. " channel")
+    elseif DEFAULT_CHAT_FRAME then
+        DEFAULT_CHAT_FRAME:AddMessage("Please join " .. Meeting.channel .. " channel")
     end
 end
 

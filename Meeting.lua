@@ -20,12 +20,16 @@ local function GetMembers()
     local members = {}
     for i = 1, GetNumRaidMembers() do
         local n = UnitName("raid" .. i)
-        table.insert(members, n)
+        if n and n ~= Meeting.player then
+            table.insert(members, n)
+        end
     end
-    if table.getn(members) == 0 then
+    if table.getn(members) == 0 and GetNumRaidMembers() == 0 then
         for i = 1, GetNumPartyMembers() do
             local n = UnitName("party" .. i)
-            table.insert(members, n)
+            if n and n ~= Meeting.player then
+                table.insert(members, n)
+            end
         end
     end
     return members
@@ -92,7 +96,7 @@ local function OnMemberChange()
         needUpdateBrowser = true
     end
 
-    if Meeting.joinedActivity then
+    if Meeting.joinedActivity and Meeting.joinedActivity ~= joined then
         local activity = Meeting:FindActivity(Meeting.joinedActivity.unitname)
         if activity then
             activity.applicantStatus = Meeting.APPLICANT_STATUS.None
@@ -138,7 +142,7 @@ f:SetScript("OnEvent", function()
             else
                 local lowname = string.lower(name)
                 if lowname == "world" or lowname == "china" or lowname == "lfg" then
-                    lowname = "world"
+                    if lowname == "lfg" then lowname = "world" end
                     Meeting.Message.OnRecvFormChat(lowname, arg2, arg1)
                 end
             end
@@ -552,17 +556,22 @@ function Meeting:OnCreate(id, code, comment, level, class, members, hc, classnum
         return  -- 如果包含屏蔽词，不创建活动
     end
 
+    if not id or id == "" or not code or code == "" then
+        return
+    end
     local item, index = Meeting:FindActivity(id)
     local code = Meeting.GetActivityInfo(code).key
-    local class = Meeting.NumberToClass(tonumber(class))
+    local class = Meeting.NumberToClass(tonumber(class) or 0)
     local classColor = Meeting.GetClassRGBColor(class, id)
+    local numLevel = tonumber(level) or 0
+    local numMembers = tonumber(members) or 0
     if item then
         item.category = Meeting.GetActivityCategory(code).key
         item.code = code
         item.comment = comment
-        item.level = tonumber(level)
+        item.level = numLevel
         item.class = class
-        item.members = tonumber(members)
+        item.members = numMembers
         item.isHC = hc == "1"
         item.updated = time()
         item.classColor = classColor
@@ -579,9 +588,9 @@ function Meeting:OnCreate(id, code, comment, level, class, members, hc, classnum
             category = Meeting.GetActivityCategory(code).key,
             code = code,
             comment = comment,
-            level = tonumber(level),
+            level = numLevel,
             class = class,
-            members = tonumber(members),
+            members = numMembers,
             isHC = hc == "1",
             updated = time(),
             applicantList = {},
@@ -634,24 +643,27 @@ function Meeting:OnRequest(name, id, level, class, score, comment, role)
         end
         if i ~= -1 then
             local applicant = activity.applicantList[i]
-            applicant.level = tonumber(level)
-            applicant.score = tonumber(score)
-            applicant.comment = comment
+            applicant.level = tonumber(level) or 0
+            applicant.score = tonumber(score) or 0
+            applicant.comment = comment or "_"
             applicant.status = Meeting.APPLICANT_STATUS.None
             applicant.role = role and tonumber(role) or 0
         else
             local applicant = {
                 name = name,
-                level = tonumber(level),
-                class = Meeting.NumberToClass(tonumber(class)),
-                score = tonumber(score),
-                comment = comment,
+                level = tonumber(level) or 0,
+                class = Meeting.NumberToClass(tonumber(class) or 0),
+                score = tonumber(score) or 0,
+                comment = comment or "_",
                 status = Meeting.APPLICANT_STATUS.None,
                 role = role and tonumber(role) or 0
             }
             table.insert(activity.applicantList, applicant)
         end
         PlaySoundFile("Interface\\AddOns\\Meeting\\assets\\request.ogg")
+        if Meeting.NotifyTaskbar then
+            Meeting.NotifyTaskbar()
+        end
 
         Meeting.CreatorFrame:UpdateList()
         Meeting.FloatFrame.Update()
@@ -785,6 +797,11 @@ C_Timer.NewTicker(5, function()
         if rm then
             update = true
             table.remove(Meeting.activities, index)
+            if Meeting.joinedActivity and Meeting.joinedActivity.unitname == activity.unitname then
+                Meeting.joinedActivity = nil
+                Meeting.CreatorFrame.UpdateActivity()
+                Meeting.CreatorFrame:UpdateList()
+            end
         end
     end
 
@@ -825,23 +842,57 @@ function Meeting:ReFilterActivities()
     end
 end
 
+local hasUnitXP = nil
+local lastTaskbarNotify = 0
+function Meeting.HasUnitXP()
+    if hasUnitXP == nil then
+        hasUnitXP = pcall(UnitXP, "nop", "nop") and true or false
+    end
+    return hasUnitXP
+end
+
+function Meeting.NotifyTaskbar()
+    if not Meeting.HasUnitXP() then return end
+    local now = GetTime()
+    if now - lastTaskbarNotify < 5 then return end
+    lastTaskbarNotify = now
+    pcall(UnitXP, "notify", "taskbarIcon")
+end
+
 SLASH_MEETING1 = "/meeting"
 SlashCmdList["MEETING"] = function(msg, editbox)
-    if (msg == "" or msg == nil) then
-        print("Meeting:")
-        print("  /meeting visible |cffcccccc- Show/Hide float window")
-        print("  /meeting toggle |cffcccccc- Show/Hide main UI")
-        print("  /meeting reset |cffcccccc- Reset")
-        print("  /meeting block |cffcccccc- Block words management") -- 新屏蔽关键词相关命令 by 武藤纯子酱 2025.12.30
-        print("    /meeting block add <keyword> |cffcccccc- Add block word")
-        print("    /meeting block del <keyword> |cffcccccc- Delete block word")
-        print("    /meeting block clear |cffcccccc- Clear block words")
-        print("    /meeting block list |cffcccccc- List block words")
+    local function mprint(text)
+        if DEFAULT_CHAT_FRAME then
+            DEFAULT_CHAT_FRAME:AddMessage(text)
+        end
+    end
+    local _, _, cmd, args = string.find(msg or "", "^%s*(%w+)%s*(.*)")
+    if not cmd or cmd == "" then
+        mprint("Meeting:")
+        mprint("  /meeting visible |cffcccccc- Show/Hide float window")
+        mprint("  /meeting toggle |cffcccccc- Show/Hide main UI")
+        mprint("  /meeting status |cffcccccc- Show channel, DLL mod, and synergy status")
+        mprint("  /meeting reset |cffcccccc- Reset")
+        mprint("  /meeting block |cffcccccc- Block words management")
+        mprint("    /meeting block add <keyword> |cffcccccc- Add block word")
+        mprint("    /meeting block del <keyword> |cffcccccc- Delete block word")
+        mprint("    /meeting block clear |cffcccccc- Clear block words")
+        mprint("    /meeting block list |cffcccccc- List block words")
         return
     end
 
-    local _, _, cmd, args = string.find(msg, "%s?(%w+)%s?(.*)")
     cmd = string.lower(cmd)
+    if cmd == "status" then
+        local chId = GetChannelName(Meeting.channel)
+        local hasCAPI = (CLASSIC_API_VERSION ~= nil) and ("v" .. tostring(CLASSIC_API_VERSION)) or "No"
+        local hasXP = Meeting.HasUnitXP() and "Yes" or "No"
+        local hasWT = (type(WoWTranslate_API) == "table" and WoWTranslate_API.IsAvailable and WoWTranslate_API.IsAvailable()) and "Connected" or (type(WoWTranslate_CacheGet) == "function" and "Cache-only" or "No")
+        local hasDBB = (type(DBB2) == "table" and DBB2.api) and "Linked" or "No"
+        mprint("|cFF00FF00[Meeting Status]|r Channel " .. tostring(Meeting.channel) .. ": " .. (chId ~= 0 and ("Joined (#" .. chId .. ")") or "Not joined"))
+        mprint("  Activities: " .. table.getn(Meeting.activities) .. " | ClassicAPI: " .. hasCAPI .. " | UnitXP SP3: " .. hasXP)
+        mprint("  WoWTranslate Hub: " .. hasWT .. " | DBB Synergy: " .. hasDBB)
+        return
+    end
     if cmd == "visible" then
         MEETING_DB.hideFloat = MEETING_DB.hideFloat == 1 and 0 or 1
         if MEETING_DB.hideFloat == 1 then

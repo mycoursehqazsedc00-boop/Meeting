@@ -95,7 +95,7 @@ function SetMathcKeyWords()
     
     -- 添加任务链接匹配条件
     if Meeting.searchInfo.code == "QuestLink" then
-        table.insert(matchs, "|Hquest:")
+        table.insert(matchs, "|hquest:")
         return matchs, nomatchs
     end
     
@@ -145,6 +145,7 @@ function SetMathcKeyWords()
     return matchs, nomatchs
 end
 -- 修改菜单选项创建逻辑，添加全部选项 by 武藤纯子酱 2025.9.22
+local searchInput = nil
 local options = {
     type = 'group',
     args = {
@@ -417,7 +418,7 @@ local selectButton = Meeting.GUI.CreateButton({
     end
 })
 -- 添加搜索框 by 武藤纯子酱 2025.9.24
-local searchInput = Meeting.GUI.CreateInput({
+searchInput = Meeting.GUI.CreateInput({
     parent = browserFrame,
     width = 200,
     height = 24,
@@ -484,7 +485,8 @@ searchInput:SetScript("OnTextChanged", function()
     end
 end)
 -- 修改输入法开始合成事件
-searchInput:SetScript("OnChar", function(char)
+searchInput:SetScript("OnChar", function()
+    local char = arg1
     -- 检测到中文字符输入开始
     if type(char) == "string" and string.len(char) > 0 and string.byte(char) > 127 then
         Meeting.searchInfo.isComposing = true
@@ -632,6 +634,7 @@ local blockButton = Meeting.GUI.CreateButton({
                             -- 创建添加屏蔽词的输入对话框
                             local blockInput
                             local dialog = Meeting.GUI.CreateDialog({
+                                dialogKey = "AddBlockWord",
                                 parent = Meeting.BrowserFrame,
                                 anchor = {
                                     point = "CENTER",
@@ -643,6 +646,13 @@ local blockButton = Meeting.GUI.CreateButton({
                                 title = "Add Block Word",
                                 width = 300,
                                 height = 100,
+                                onReuse = function(parent)
+                                    if parent._blockInput then
+                                        blockInput = parent._blockInput
+                                        blockInput:SetText("")
+                                        blockInput:SetFocus()
+                                    end
+                                end,
                                 onCustomFrame = function(parent, anchor)
                                     local frame = Meeting.GUI.CreateFrame({
                                         parent = parent,
@@ -673,6 +683,7 @@ local blockButton = Meeting.GUI.CreateButton({
                                     })
                                     Meeting.GUI.SetBackground(input, Meeting.GUI.Theme.Black, Meeting.GUI.Theme.White)
                                     input:SetFocus()
+                                    parent._blockInput = input
                                     blockInput = input
                                     
                                     return frame
@@ -769,12 +780,12 @@ local blockButton = Meeting.GUI.CreateButton({
 						for i, word in ipairs(Meeting.blockWords) do
 							if word == blockword then
 								table.remove(Meeting.blockWords, i)
-								found = true
 								break
 							end
 						end
                         MEETING_DB.blockWords = Meeting.blockWords
                         DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00Meeting|r: Deleted block word: " .. blockword)
+                        Menu:Close()
                         Meeting:ReFilterActivities()
                     end,
                 }
@@ -1077,9 +1088,10 @@ local function CreateRequestPrompt(config)
             multiLine = false
         })
         Meeting.GUI.SetBackground(input, Meeting.GUI.Theme.Black, Meeting.GUI.Theme.White)
+        parent._noteInput = input
 
         config._confirm = function()
-            local text = input:GetText()
+            local text = parent._noteInput and parent._noteInput:GetText() or ""
             text = string.gsub(text, ":", "：")
             config.confirm(text, MEETING_DB.role)
         end
@@ -1087,7 +1099,57 @@ local function CreateRequestPrompt(config)
         return frame
     end
 
+    config.dialogKey = "RequestPrompt"
+    config.onReuse = function(parent)
+        if parent._noteInput then
+            parent._noteInput:SetText("")
+        end
+        parent._confirmFn = function()
+            local text = parent._noteInput and parent._noteInput:GetText() or ""
+            text = string.gsub(text, ":", "：")
+            config.confirm(text, MEETING_DB.role)
+        end
+    end
+
     return Meeting.GUI.CreateDialog(config)
+end
+
+-- Public bridge for companion addons (e.g. DifficultBulletinBoard Alt+Click):
+-- Opens Meeting and launches the Apply prompt for an active non-chat activity by leaderName.
+function Meeting.QuickApply(leaderName)
+    if not leaderName or leaderName == "" then return false end
+    local activity = Meeting:FindActivity(leaderName)
+    if not activity or (activity.IsChat and activity:IsChat()) then
+        return false
+    end
+    if Meeting.MainFrame and not Meeting.MainFrame:IsShown() then
+        Meeting.MainFrame:Show()
+    end
+    local info = Meeting.GetActivityInfo(activity.code)
+    local actName = (info and info.name) or activity.code or ""
+    local targetId = activity.unitname
+    local frame = CreateRequestPrompt({
+        parent = Meeting.BrowserFrame,
+        anchor = {
+            point = "CENTER",
+            relative = Meeting.BrowserFrame,
+            relativePoint = "CENTER",
+            x = 0,
+            y = 0
+        },
+        title = (Meeting.WT and Meeting.WT.L and Meeting.WT.L("申请加入") or "Apply to join ") .. actName,
+        confirm = function(text, role)
+            if not targetId then return end
+            Meeting.Message.Request(targetId, text, role)
+            local act = Meeting:FindActivity(targetId)
+            if act then
+                act.applicantStatus = Meeting.APPLICANT_STATUS.Invited
+                Meeting.BrowserFrame:UpdateActivity(act)
+            end
+        end
+    })
+    frame:SetPoint("TOP", Meeting.BrowserFrame, "TOP", 0, -50)
+    return true
 end
 
 local activityListFrame = Meeting.GUI.CreateListFrame({
@@ -1256,6 +1318,8 @@ local activityListFrame = Meeting.GUI.CreateListFrame({
                 if f.isChat then
                     ChatFrame_OpenChat("/w " .. f.leader .. " ", SELECTED_DOCK_FRAME or DEFAULT_CHAT_FRAME)
                 else
+                    local targetId = f.id
+                    local targetName = f.name
                     local frame = CreateRequestPrompt({
                         parent = Meeting.BrowserFrame,
                         anchor = {
@@ -1265,13 +1329,18 @@ local activityListFrame = Meeting.GUI.CreateListFrame({
                             x = 0,
                             y = 0
                         },
-                        title = (Meeting.WT and Meeting.WT.L and Meeting.WT.L("申请加入") or "Apply to join ") .. f.name,
+                        title = (Meeting.WT and Meeting.WT.L and Meeting.WT.L("申请加入") or "Apply to join ") .. (targetName or ""),
                         confirm = function(text, role)
-                            Meeting.Message.Request(f.id, text, role)
-                            local activity = Meeting:FindActivity(f.id)
-                            if activity then activity.applicantStatus = Meeting.APPLICANT_STATUS.Invited
-                            Meeting.BrowserFrame:UpdateActivity(activity) end
-                            f.requestButton:Disable()
+                            if not targetId then return end
+                            Meeting.Message.Request(targetId, text, role)
+                            local activity = Meeting:FindActivity(targetId)
+                            if activity then
+                                activity.applicantStatus = Meeting.APPLICANT_STATUS.Invited
+                                Meeting.BrowserFrame:UpdateActivity(activity)
+                            end
+                            if f.id == targetId then
+                                f.requestButton:Disable()
+                            end
                         end
                     })
                     frame:SetPoint("TOP", Meeting.BrowserFrame, "TOP", 0, -50)
@@ -1559,12 +1628,16 @@ function Meeting.BrowserFrame:UpdateActivity(activity)
     end
 
     local offset = FauxScrollFrame_GetOffset(activityListFrame) + 1
-    if index < offset or index > offset + table.getn(activityListFrame.pool) then
+    local poolIndex = index - offset + 1
+    local poolSize = table.getn(activityListFrame.pool)
+    if poolIndex < 1 or poolIndex > poolSize then
         return
     end
 
-    local frame = activityListFrame.pool[index - offset + 1]
-    ReloadCell(frame, activity)
+    local frame = activityListFrame.pool[poolIndex]
+    if frame and frame:IsShown() then
+        ReloadCell(frame, activity)
+    end
 end
 
 C_Timer.After(0, function()
